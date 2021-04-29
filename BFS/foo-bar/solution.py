@@ -1,4 +1,42 @@
+import copy
 from collections import deque
+
+
+def solution(map):
+    height = len(map) - 1
+    width = len(map[0]) - 1
+
+    graph, depth_graph = bfs(grid=map)
+
+    # Shortest distance (breaking no walls)
+    shortest_distance = find_depth(graph, map, height, width)
+    if shortest_distance is False:
+        shortest_distance = 10000
+
+    # Counts number of walls
+    wall_queue = deque()
+    for row_id, row in enumerate(map):
+        for col_id, col in enumerate(row):
+            # Adds wall coordinate to wall_list
+            if col == 1:
+                wall_queue.append((row_id, col_id))
+
+    # Breaks every wall and re-calculates shortest route.
+    while wall_queue:
+        grid_replica = copy.deepcopy(map)
+        y, x = wall_queue[0]
+        grid_replica[y][x] = 0
+
+        graph_broken_wall, depth_graph_broken_wall = bfs(grid_replica)
+        distance = find_depth(depth_graph=graph_broken_wall, grid=grid_replica, y=height, x=width)
+
+        if distance:
+            if distance < shortest_distance:
+                shortest_distance = distance
+
+        wall_queue.popleft()
+
+    return shortest_distance
 
 
 def find_neighbors(grid, coordinates):
@@ -44,60 +82,86 @@ def find_neighbors(grid, coordinates):
 
 def bfs(grid):
     graph = {}
+    depth_graph = {}
+
     checked_coordinates = []
+
+    height = len(grid) - 1
+    width = len(grid[0]) - 1
 
     # Queue is initialized with starting coordinate
     queue = deque([(0, 0)])
 
     while queue:
         y, x = queue[0]
-        checked_coordinates.append((y, x))
 
-        neighbors = find_neighbors(grid=grid, coordinates=(y, x))
-        neighbor_list = []
+        if x == width and y == height:
+            queue = None
+            break
 
-        for neighbor in neighbors:
-            # Coordinates of neighbor
-            y2, x2 = neighbor
-            # Checks if neighbor is wall
-            if grid[y2][x2] == 1:
-                pass
+        else:
+            checked_coordinates.append((y, x))
+            neighbors = find_neighbors(grid=grid, coordinates=(y, x))
+            # Non-wall neighbors (for traversing shortest distance)
+            neighbor_list = []
 
-            else:
+            # All neighbors (for calculating depth)
+            depth_list = []
+
+            for neighbor in neighbors:
+                # Coordinates of neighbor
+                y2, x2 = neighbor
+                # Checks if neighbor is wall
                 if neighbor not in checked_coordinates:
-                    neighbor_list.append(neighbor)
-                    queue.append(neighbor)
+                    depth_list.append(neighbor)
+
+                    if grid[y2][x2] != 1:
+                        neighbor_list.append(neighbor)
+                        queue.append(neighbor)
+
                     checked_coordinates.append(neighbor)
 
-        graph[(y, x)] = neighbor_list
-        queue.popleft()
+            graph[(y, x)] = neighbor_list
+            depth_graph[(y, x)] = depth_list
+            queue.popleft()
 
-        print(f"Coords: ({y}, {x}) | Next move: {neighbor_list}")
-
-    return graph
+    return graph, depth_graph
 
 
-def find_depth(graph, grid, y, x):
+def find_depth(depth_graph, grid, y, x):
+    """
+    :rtype: int
+    :param depth_graph: Nested List - Graph or depth graph.
+    :param grid: Nested list - Initial Grid.
+    :param y: int - Y index.
+    :param x: int - X index
+    :return: int - Depth
+    """
     depth = 1
     coordinate = (y, x)
     found = False
+    search = False
 
-    # Checks if point is wall
-    if is_wall(grid=grid, y=y, x=x):
-        return None
+    # Initial search if the coordinate is in the graph (if not, it may not be solvable without breaking a wall)
+    for key in depth_graph.keys():
+        if coordinate in depth_graph[key]:
+            search = True
+
+    while not found and search:
+        for key in depth_graph.keys():
+            if coordinate in depth_graph[key]:
+                if key == (0, 0):
+                    found = True
+
+                else:
+                    coordinate = key
+                depth += 1
+
+    if search:
+        return depth
 
     else:
-        while not found and coordinate != (0, 0):
-            for key in graph.keys():
-                if coordinate in graph[key]:
-                    if key == (0, 0):
-                        found = True
-
-                    else:
-                        coordinate = key
-                        depth += 1
-
-    return depth
+        return False
 
 
 def is_wall(grid, y, x):
@@ -106,14 +170,3 @@ def is_wall(grid, y, x):
 
     else:
         return False
-
-
-grid = [
-    [0, 1, 1, 0],
-    [0, 0, 0, 1],
-    [1, 1, 0, 0],
-    [1, 1, 1, 0]
-]
-graph = bfs(grid)
-print(find_neighbors(grid, (2, 2)))
-print(find_depth(graph, grid, 3, 3))
